@@ -58,12 +58,6 @@ A_1day = [
 Q = real(logm(A_1day));
 
 %% Observation Model P(o_t | x_t)
-% Rows: Hidden states (1: Normal, 2: Prep, 3: Labour, 4: Transition, 5: Calving)
-% Cols: Observations:
-%   1 = Standing + not arched
-%   2 = Standing + arched
-%   3 = Lying + arched
-%   4 = Lying + not arched
 ObservationModel = [
     0.90 0.08 0.01 0.01;   % Normal
     0.50 0.40 0.08 0.02;   % Preparatory
@@ -106,19 +100,19 @@ for icow = 1:Ncows
             time_num(t) = str2double(rec.time) / 86400; % unix timestamp to days
         end
 
-        standing = rec.standing;
-        arched = rec.arched;
+        st_val = to_scalar_num(rec.standing);
+        ar_val = to_scalar_num(rec.arched);
 
         % Encode observation:
         % 1 = Standing + not arched
         % 2 = Standing + arched
         % 3 = Lying + arched
         % 4 = Lying + not arched
-        if standing == 1 && arched == 0
+        if st_val == 1 && ar_val == 0
             obs = 1;
-        elseif standing == 1 && arched == 1
+        elseif st_val == 1 && ar_val == 1
             obs = 2;
-        elseif standing == 0 && arched == 1
+        elseif st_val == 0 && ar_val == 1
             obs = 3;
         else
             obs = 4;
@@ -190,6 +184,29 @@ end
 
 end
 
+%% Helper Function: Safely convert input value to a scalar double
+function num = to_scalar_num(x)
+if isempty(x)
+    num = 0;
+    return;
+end
+if iscell(x)
+    x = x{1};
+end
+if ischar(x) || isstring(x)
+    num = str2double(x);
+    if isnan(num), num = 0; end
+elseif isnumeric(x) || islogical(x)
+    if isempty(x)
+        num = 0;
+    else
+        num = double(x(1));
+        if isnan(num), num = 0; end
+    end
+else
+    num = 0;
+end
+end
 
 %% Pregnancy Likelihood Model (from test_example.m)
 function Pg = pregnancyLikelihood(day)

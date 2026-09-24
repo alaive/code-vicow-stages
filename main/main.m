@@ -172,8 +172,8 @@ for itime = 1:length(unique_times)
     time_recs = raw_recs(idx_time);
 
     cams = {time_recs.obj};
-    standing_vals = [time_recs.standing];
-    arched_vals = [time_recs.arched];
+    standing_vals = {time_recs.standing};
+    arched_vals = {time_recs.arched};
 
     standing_unified = get_most_likely(standing_vals);
     arched_unified = get_most_likely(arched_vals);
@@ -233,14 +233,14 @@ for t = 1:Ntime
         time_num(t) = str2double(rec.time) / 86400;
     end
 
-    standing = rec.standing;
-    arched = rec.arched;
+    st_val = to_scalar_num(rec.standing);
+    ar_val = to_scalar_num(rec.arched);
 
-    if standing == 1 && arched == 0
+    if st_val == 1 && ar_val == 0
         obs = 1;
-    elseif standing == 1 && arched == 1
+    elseif st_val == 1 && ar_val == 1
         obs = 2;
-    elseif standing == 0 && arched == 1
+    elseif st_val == 0 && ar_val == 1
         obs = 3;
     else
         obs = 4;
@@ -365,6 +365,31 @@ end
 end
 
 
+%% Helper Function: Safely convert input value to a scalar double
+function num = to_scalar_num(x)
+if isempty(x)
+    num = 0;
+    return;
+end
+if iscell(x)
+    x = x{1};
+end
+if ischar(x) || isstring(x)
+    num = str2double(x);
+    if isnan(num), num = 0; end
+elseif isnumeric(x) || islogical(x)
+    if isempty(x)
+        num = 0;
+    else
+        num = double(x(1));
+        if isnan(num), num = 0; end
+    end
+else
+    num = 0;
+end
+end
+
+
 %% Helper Function: Compute pregnancy likelihood
 function Pg = pregnancyLikelihood_local(day)
 Pg = zeros(5, 1);
@@ -383,29 +408,47 @@ end
 end
 
 
-%% Helper Function: Mode / Majority vote
+%% Helper Function: Mode / Majority vote (guaranteed scalar output)
 function most_likely = get_most_likely(vals)
 if isempty(vals)
-    most_likely = [];
+    most_likely = 0;
     return;
 end
 
 if iscell(vals)
-    valid_mask = ~cellfun(@isempty, vals);
-    vals = vals(valid_mask);
+    valid_vals = {};
+    for k = 1:length(vals)
+        if ~isempty(vals{k})
+            valid_vals{end+1} = vals{k}; %#ok<AGROW>
+        end
+    end
+    vals = valid_vals;
     if isempty(vals)
-        most_likely = [];
+        most_likely = 0;
         return;
     end
-    if all(cellfun(@isnumeric, vals))
-        vals = cell2mat(vals);
+    
+    % Check if all elements are numeric
+    all_num = true;
+    for k = 1:length(vals)
+        if ~isnumeric(vals{k}) && ~islogical(vals{k})
+            all_num = false;
+            break;
+        end
+    end
+    if all_num
+        num_arr = zeros(1, length(vals));
+        for k = 1:length(vals)
+            num_arr(k) = double(vals{k}(1));
+        end
+        vals = num_arr;
     end
 end
 
 if isnumeric(vals) || islogical(vals)
     vals = vals(~isnan(vals));
     if isempty(vals)
-        most_likely = [];
+        most_likely = 0;
     else
         most_likely = mode(vals);
     end
@@ -415,6 +458,10 @@ elseif iscell(vals)
     [~, max_idx] = max(counts);
     most_likely = uvals{max_idx};
 else
-    most_likely = vals(1);
+    most_likely = 0;
+end
+
+if isempty(most_likely)
+    most_likely = 0;
 end
 end
